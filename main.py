@@ -37,10 +37,12 @@ def convert_path(path):
 def do_rclone(gcal, action):
     print "Starting z{} now".format(action)
     index = 0
-    dry_run = True
+    errors = 0
+    dry_run = False
     paths = gcal.get_backup_paths()
     result = list()
     lpaths = list()
+    execute_cmd = None
 
     for path in paths:
         if len(path) == 0:
@@ -50,29 +52,34 @@ def do_rclone(gcal, action):
         logfile = str_join("rclone_",
                            datetime.now().strftime("%Y%m%d-%H%M%S"),
                            ".log")
-        if action == "Recover":
+
+        if gcal.action == "Recover":
             (drive_path, local_path) = (
                 (convert_path(path)).strip()).split(':', 1)
-            execute = str_join(RCLONE_EXE, " sync"
+            execute_cmd = str_join(RCLONE_EXE, " sync"
                                " \"{}{}\"".format(RCLONE_REMOTE, drive_path),
                                " \"{}\"".format(local_path),
                                " -v --log-file {}".format(logfile))
-        else:
+        elif gcal.action == "Backup":
             (local_path, drive_path) = (
                 (convert_path(path)).strip()).rsplit(':', 1)
-            execute = str_join(RCLONE_EXE, " sync"
+            execute_cmd = str_join(RCLONE_EXE, " sync"
                                " \"{}\"".format(local_path),
                                " \"{}{}\"".format(RCLONE_REMOTE, drive_path),
                                " -v --log-file {}".format(logfile))
+
+        if not execute_cmd:
+            print "Need to define Backup or Recover in Google Calendar Summary"
+            return
 
         lpath['path'] = local_path
         lpath['log'] = logfile
         lpaths.append(lpath)
-        if dry_run:
-            execute = str_join(execute, " --dry-run")
-        cmd(execute)
 
-    errors = 0
+        if dry_run:
+            execute_cmd = str_join(execute_cmd, " --dry-run")
+        cmd(execute_cmd)
+
     index = 0
     for lpath in lpaths:
         index = index + 1
@@ -111,12 +118,13 @@ def do_gcal_check(job=None):
         rclone_sched.enter(2, 1, do_rclone, (gcal, action))
         rclone_sched.run()
         if event_timer_offset < RCLONE_EVENT_TIMER:
+            continue
             """
             If event needs to be done in 5 min then block and wait
             for it to complete
             """
             print "Event waiting for to run"
-            rclone_sched.enter(5, 1, do_rclone_backup, (gcal, ))
+            rclone_sched.enter(5, 1, do_rclone, (gcal, ))
             rclone_sched.run()
         time.sleep(RCLONE_EVENT_TIMER)
 

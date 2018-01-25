@@ -36,6 +36,7 @@ class GCalendar(object):
         self.event_id = None
         self.start_tm = None
         self.description = None
+        self.action = None
         self.credentials = self.get_credentials()
         self.http = self.credentials.authorize(httplib2.Http())
         self.service = discovery.build('calendar', 'v3', http=self.http)
@@ -48,9 +49,8 @@ class GCalendar(object):
             return self.description.split('\n')
         return None
 
-    @staticmethod
-    def generate_report(results=None):
-        description = str_join("Backup Report\n",
+    def generate_report(self, results=None):
+        description = str_join("{} Report\n".format(self.action),
                                "--------------------------")
         for result in results:
             path = result.get("path", "")
@@ -69,6 +69,7 @@ class GCalendar(object):
     def update_gevent(self, results=None, error=-1):
         # Color the event with GREEN for success
         color_id = GColorId.RED
+        description = None
         if error == 0:
             color_id = GColorId.GREEN
 
@@ -133,9 +134,10 @@ class GCalendar(object):
         start_tm = events[0]['start'].get('dateTime', events[0]['start'].get('date'))
         self.event_id = events[0]['id']
         self.start_tm = start_tm
+        self.action = events[0]['summary']
         return dict({"eventId": events[0]['id'],
                      "start_tm": start_tm,
-                     "action": events[0]['summary']})
+                     "action": self.action})
 
 
 if __name__ ==  "__main__":
